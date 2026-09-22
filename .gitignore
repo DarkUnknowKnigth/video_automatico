@@ -1,0 +1,27 @@
+# Entornos virtuales
+venv/
+env/
+.env
+
+# Archivos de caché y temporales
+__pycache__/
+*.pyc
+
+# Carpetas de trabajo (ignoramos contenido, pero podemos dejar la carpeta vacía)
+input/*
+!input/.gitkeep
+
+output/*
+!output/.gitkeep
+
+# Archivos de medios o generados temporalmente (por si acaso quedan sueltos)
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.srt
+*_avatar.txt
+
+# Si decides ignorar las imágenes originales (opcional, pero útil si pesan mucho)
+# avatar/
+# logos/
