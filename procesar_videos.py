@@ -100,7 +100,7 @@ def generate_text_based_avatar(segments, output_txt_path, base_dir):
 print("\nCargando modelo de IA para subtítulos (Word-Level Lip-Sync activo)...")
 model = WhisperModel("small", device="cpu", compute_type="int8")
 
-def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, use_avatar, use_branding):
+def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, use_avatar, use_branding, use_left):
     audio_path = output_dir / f"{video_path.stem}.wav"
     srt_path = output_dir / f"{video_path.stem}.srt"
     avatar_txt_path = output_dir / f"{video_path.stem}_avatar.txt"
@@ -147,6 +147,9 @@ def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, 
     curr_stream = "[0:v]"
     
     if use_branding:
+        s3_x = "W-w-10" if use_left else "10"
+        l3_x = "W-w-20" if use_left else "20"
+        
         filter_complex += (
             "[1:v]scale=90:-1,split[l1a][l1b];"
             "[l1a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s1];"
@@ -156,18 +159,19 @@ def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, 
             "[l3a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s3];"
             f"{curr_stream}[s1]overlay=10:10[v1a];"
             "[v1a][s2]overlay=W-w-10:10[v2a];"
-            "[v2a][s3]overlay=10:H-h-10[v3a];"
+            f"[v2a][s3]overlay={s3_x}:H-h-10[v3a];"
             "[v3a][l1b]overlay=20:20[v1b];"
             "[v1b][l2b]overlay=W-w-20:20[v2b];"
-            "[v2b][l3b]overlay=20:H-h-20[curr];"
+            f"[v2b][l3b]overlay={l3_x}:H-h-20[curr];"
         )
         curr_stream = "[curr]"
         
     if has_avatar:
         avatar_idx = 4 if use_branding else 1
+        av_x = "0" if use_left else "W-w"
         filter_complex += (
             f"[{avatar_idx}:v]scale=400:-1[av];"
-            f"{curr_stream}[av]overlay=W-w:H-h[curr_av];"
+            f"{curr_stream}[av]overlay={av_x}:H-h[curr_av];"
         )
         curr_stream = "[curr_av]"
 
@@ -198,6 +202,7 @@ def main():
     parser = argparse.ArgumentParser(description="Procesador automático de videos con logos, subtítulos y avatar.")
     parser.add_argument("--avatar", action="store_true", help="Si se especifica, procesa y añade el avatar al video.")
     parser.add_argument("--branding", action="store_true", help="Si se especifica, añade los 3 logos al video.")
+    parser.add_argument("--left", action="store_true", help="Coloca el avatar a la izquierda y el logo 3 a la derecha.")
     args = parser.parse_args()
     
     base_dir = Path(__file__).parent.absolute()
@@ -224,12 +229,13 @@ def main():
     print(f"Iniciando procesamiento PARALELO ({max_workers} videos al mismo tiempo)...")
     print(f"Modo Avatar: {'Activado' if args.avatar else 'Desactivado'}")
     print(f"Modo Branding (Logos): {'Activado' if args.branding else 'Desactivado'}")
+    print(f"Posición Avatar: {'Izquierda' if args.left else 'Derecha'}")
     print(f"==========================================\n")
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for video_path in video_files:
-            futures.append(executor.submit(process_single_video, video_path, output_dir, base_dir, logo1, logo2, logo3, args.avatar, args.branding))
+            futures.append(executor.submit(process_single_video, video_path, output_dir, base_dir, logo1, logo2, logo3, args.avatar, args.branding, args.left))
             
         for future in concurrent.futures.as_completed(futures):
             try:

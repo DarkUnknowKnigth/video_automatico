@@ -46,10 +46,13 @@ Para insertar el avatar animado en la esquina inferior derecha hablando al ritmo
 python procesar_videos.py --avatar
 ```
 
-*Nota: Puedes combinar las opciones si quieres tanto los logos como el avatar animado al mismo tiempo:*
+**4. Invertir posiciones (Avatar a la izquierda)**
+Si usas la bandera `--left`, el avatar se colocará en la esquina inferior izquierda, y el tercer logo pasará a la esquina inferior derecha (intercambiando sus posiciones por defecto):
 ```bash
-python procesar_videos.py --branding --avatar
+python procesar_videos.py --branding --avatar --left
 ```
+
+*Nota: Puedes combinar las opciones libremente.*
 
 ## Cómo funciona el Lip-Sync
 El lip-sync no se basa en el volumen del audio (que suele fallar), sino **en el texto**.
