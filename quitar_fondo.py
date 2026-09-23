@@ -20,7 +20,7 @@ def remove_white_background(img_path, out_path, tolerance=220):
     print(f"Procesado: {out_path.name}")
 
 if __name__ == '__main__':
-    avatar_dir = Path(r"C:\Users\jose-\.gemini\antigravity\scratch\video_processor\avatar")
+    avatar_dir = Path(__file__).parent.absolute() / "avatar"
     
     for i in range(1, 8):
         img_path = avatar_dir / f"{i}.png"
