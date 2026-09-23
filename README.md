@@ -28,16 +28,27 @@ Antes de ejecutar el script, asegúrate de tener la siguiente estructura:
 ## Uso
 Abre tu consola en la carpeta del proyecto. Tienes dos formas de ejecutarlo:
 
-**1. Modo Estándar (Sin Avatar)**
-Solo agregará los subtítulos automáticos y los 3 logos en las esquinas:
+**1. Modo Estándar (Solo subtítulos)**
+Por defecto, el script genera la transcripción por IA y quema los subtítulos en el video.
 ```bash
 python procesar_videos.py
 ```
 
-**2. Modo Avatar**
-Además de los subtítulos y los logos, insertará el avatar animado en la esquina inferior derecha hablando al ritmo de tu voz:
+**2. Añadir Logos (Branding)**
+Para agregar los 3 logos con efecto de cristal en las esquinas, debes incluir la bandera `--branding`.
+```bash
+python procesar_videos.py --branding
+```
+
+**3. Modo Avatar Animado**
+Para insertar el avatar animado en la esquina inferior derecha hablando al ritmo de tu voz:
 ```bash
 python procesar_videos.py --avatar
+```
+
+*Nota: Puedes combinar las opciones si quieres tanto los logos como el avatar animado al mismo tiempo:*
+```bash
+python procesar_videos.py --branding --avatar
 ```
 
 ## Cómo funciona el Lip-Sync

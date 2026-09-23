@@ -100,7 +100,7 @@ def generate_text_based_avatar(segments, output_txt_path, base_dir):
 print("\nCargando modelo de IA para subtítulos (Word-Level Lip-Sync activo)...")
 model = WhisperModel("small", device="cpu", compute_type="int8")
 
-def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, use_avatar):
+def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, use_avatar, use_branding):
     audio_path = output_dir / f"{video_path.stem}.wav"
     srt_path = output_dir / f"{video_path.stem}.srt"
     avatar_txt_path = output_dir / f"{video_path.stem}_avatar.txt"
@@ -117,7 +117,6 @@ def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, 
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
     # 2. Generar Transcripción con timestamps por palabra
-    # Extraemos a una lista para poder iterarlo dos veces (SRT y Avatar)
     segments_gen, info = model.transcribe(str(audio_path), language="es", beam_size=5, word_timestamps=True)
     segments = list(segments_gen)
     
@@ -136,87 +135,57 @@ def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, 
     # 4. Superponer Logos, Avatar y Subtítulos
     rel_srt = srt_path.name
     
+    ffmpeg_cmd = ["ffmpeg", "-y", "-i", str(video_path)]
+    
+    if use_branding:
+        ffmpeg_cmd.extend(["-i", str(logo1), "-i", str(logo2), "-i", str(logo3)])
+        
     if has_avatar:
-        filter_complex = (
+        ffmpeg_cmd.extend(["-f", "concat", "-safe", "0", "-i", str(avatar_txt_path)])
+        
+    filter_complex = ""
+    curr_stream = "[0:v]"
+    
+    if use_branding:
+        filter_complex += (
             "[1:v]scale=90:-1,split[l1a][l1b];"
             "[l1a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s1];"
-            
             "[2:v]scale=90:-1,split[l2a][l2b];"
             "[l2a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s2];"
-            
             "[3:v]scale=90:-1,split[l3a][l3b];"
             "[l3a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s3];"
-            
-            "[4:v]scale=400:-1[av];"
-            
-            "[0:v][s1]overlay=10:10[v1a];"
+            f"{curr_stream}[s1]overlay=10:10[v1a];"
             "[v1a][s2]overlay=W-w-10:10[v2a];"
             "[v2a][s3]overlay=10:H-h-10[v3a];"
-            
             "[v3a][l1b]overlay=20:20[v1b];"
             "[v1b][l2b]overlay=W-w-20:20[v2b];"
-            "[v2b][l3b]overlay=20:H-h-20[v3b];"
-            
-            "[v3b][av]overlay=W-w:H-h[v4];"
-            
-            f"[v4]subtitles={rel_srt}[vout]"
+            "[v2b][l3b]overlay=20:H-h-20[curr];"
         )
+        curr_stream = "[curr]"
         
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i", str(video_path),
-            "-i", str(logo1),
-            "-i", str(logo2),
-            "-i", str(logo3),
-            "-f", "concat", "-safe", "0", "-i", str(avatar_txt_path),
-            "-filter_complex", filter_complex,
-            "-map", "[vout]",
-            "-map", "0:a",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            str(final_video_path)
-        ]
+    if has_avatar:
+        avatar_idx = 4 if use_branding else 1
+        filter_complex += (
+            f"[{avatar_idx}:v]scale=400:-1[av];"
+            f"{curr_stream}[av]overlay=W-w:H-h[curr_av];"
+        )
+        curr_stream = "[curr_av]"
+
+    if filter_complex:
+        filter_complex += f"{curr_stream}subtitles={rel_srt}[vout]"
+        ffmpeg_cmd.extend(["-filter_complex", filter_complex, "-map", "[vout]"])
     else:
-        filter_complex = (
-            "[1:v]scale=90:-1,split[l1a][l1b];"
-            "[l1a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s1];"
-            
-            "[2:v]scale=90:-1,split[l2a][l2b];"
-            "[l2a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s2];"
-            
-            "[3:v]scale=90:-1,split[l3a][l3b];"
-            "[l3a]pad=w=iw+20:h=ih+20:x=10:y=10:color=black@0,colorchannelmixer=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0.7,gblur=sigma=4[s3];"
-            
-            "[0:v][s1]overlay=10:10[v1a];"
-            "[v1a][s2]overlay=W-w-10:10[v2a];"
-            "[v2a][s3]overlay=10:H-h-10[v3a];"
-            
-            "[v3a][l1b]overlay=20:20[v1b];"
-            "[v1b][l2b]overlay=W-w-20:20[v2b];"
-            "[v2b][l3b]overlay=20:H-h-20[v3b];"
-            
-            f"[v3b]subtitles={rel_srt}[vout]"
-        )
-        
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i", str(video_path),
-            "-i", str(logo1),
-            "-i", str(logo2),
-            "-i", str(logo3),
-            "-filter_complex", filter_complex,
-            "-map", "[vout]",
-            "-map", "0:a",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            str(final_video_path)
-        ]
+        ffmpeg_cmd.extend(["-vf", f"subtitles={rel_srt}", "-map", "0:v"])
+
+    ffmpeg_cmd.extend([
+        "-map", "0:a",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        str(final_video_path)
+    ])
     
     subprocess.run(ffmpeg_cmd, cwd=str(output_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
@@ -228,6 +197,7 @@ def process_single_video(video_path, output_dir, base_dir, logo1, logo2, logo3, 
 def main():
     parser = argparse.ArgumentParser(description="Procesador automático de videos con logos, subtítulos y avatar.")
     parser.add_argument("--avatar", action="store_true", help="Si se especifica, procesa y añade el avatar al video.")
+    parser.add_argument("--branding", action="store_true", help="Si se especifica, añade los 3 logos al video.")
     args = parser.parse_args()
     
     base_dir = Path(__file__).parent.absolute()
@@ -241,23 +211,25 @@ def main():
         print("--- No se encontraron videos en la carpeta input ---")
         return
         
-    logo_files = list(logos_dir.glob("*.png"))
-    if len(logo_files) < 3:
-        print("ADVERTENCIA: Faltan logos. Se necesitan 3.")
-        return
-        
-    logo1, logo2, logo3 = logo_files[:3]
+    logo1, logo2, logo3 = None, None, None
+    if args.branding:
+        logo_files = list(logos_dir.glob("*.png"))
+        if len(logo_files) < 3:
+            print("ADVERTENCIA: Faltan logos. Se necesitan 3 para --branding.")
+            return
+        logo1, logo2, logo3 = logo_files[:3]
     
     max_workers = min(4, len(video_files)) 
     print(f"\n==========================================")
     print(f"Iniciando procesamiento PARALELO ({max_workers} videos al mismo tiempo)...")
     print(f"Modo Avatar: {'Activado' if args.avatar else 'Desactivado'}")
+    print(f"Modo Branding (Logos): {'Activado' if args.branding else 'Desactivado'}")
     print(f"==========================================\n")
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for video_path in video_files:
-            futures.append(executor.submit(process_single_video, video_path, output_dir, base_dir, logo1, logo2, logo3, args.avatar))
+            futures.append(executor.submit(process_single_video, video_path, output_dir, base_dir, logo1, logo2, logo3, args.avatar, args.branding))
             
         for future in concurrent.futures.as_completed(futures):
             try:
